@@ -20,7 +20,7 @@ jest.mock('~/utils/oidc', () => ({
 // Helper function to create test user objects
 function createTestUser(
   overrides: Partial<TUser> & Record<string, unknown> = {},
-): Omit<TUser, 'createdAt' | 'updatedAt'> | undefined {
+): Omit<TUser, 'createdAt' | 'updatedAt' | 'purgeAt'> | undefined {
   return {
     id: 'test-user-id',
     username: 'testuser',

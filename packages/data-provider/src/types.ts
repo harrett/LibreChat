@@ -331,6 +331,8 @@ export type TUser = {
   };
   createdAt: string;
   updatedAt: string;
+  /** Set on throwaway accounts only: when this one is deleted if it goes unused. */
+  purgeAt?: string;
 };
 
 export type TUpdateUserPreferencesRequest = {

@@ -29,6 +29,7 @@ import {
   useAgentsMap,
   useFileMap,
 } from '~/hooks';
+import { TermsAndConditionsModal, RetentionNoticeModal } from '~/components/ui';
 import KeyboardShortcutsDialog from '~/components/Nav/KeyboardShortcutsDialog';
 import KeyboardDeleteDialog from '~/components/Nav/KeyboardDeleteDialog';
 import { useUserTermsQuery, useGetStartupConfig } from '~/data-provider';
@@ -37,7 +38,6 @@ import useKeyboardShortcuts from '~/hooks/useKeyboardShortcuts';
 import useDrawerDismiss from '~/hooks/Nav/useDrawerDismiss';
 import useSidebarToggle from '~/hooks/Nav/useSidebarToggle';
 import useSidebarState from '~/hooks/Nav/useSidebarState';
-import { TermsAndConditionsModal } from '~/components/ui';
 import useDrawerSwipe from '~/hooks/Nav/useDrawerSwipe';
 import { useHealthCheck } from '~/data-provider';
 import { Banner } from '~/components/Banners';
@@ -94,7 +94,7 @@ export default function Root() {
     },
     [setSidebarExpanded],
   );
-  const { isAuthenticated, logout } = useAuthContext();
+  const { isAuthenticated, logout, user } = useAuthContext();
   /** Releases feature-catalog queries after first paint on browser idle. */
   useCatalogWarmup(isAuthenticated);
 
@@ -208,6 +208,7 @@ export default function Root() {
               </PromptGroupsProvider>
               <KeyboardShortcutsProvider />
             </AgentsMapContext.Provider>
+            <RetentionNoticeModal purgeAt={user?.purgeAt} />
             {config?.interface?.termsOfService?.modalAcceptance === true && (
               <TermsAndConditionsModal
                 open={showTerms}

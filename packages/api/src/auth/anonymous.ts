@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { logger } from '@librechat/data-schemas';
 import { SystemRoles } from 'librechat-data-provider';
 import type { BalanceConfig, CreateUserRequest, IUser } from '@librechat/data-schemas';
 import type { RequestHandler, Response, Request } from 'express';
@@ -113,4 +114,50 @@ export async function createAnonymousSession({
   const token = await setAuthTokens(userId, res, null, req);
 
   return { token, user: { ...user, _id: userId, id: userId } };
+}
+
+export interface RenewAnonymousRetentionParams {
+  /** The refreshing account; one without `purgeAt` is not a throwaway and is left alone. */
+  user: { _id: { toString(): string }; purgeAt?: Date | string | null };
+  /** Read only for a throwaway account, so an ordinary refresh costs no config lookup. */
+  getAppConfig?: () => Promise<{ registration?: { anonymousRetentionDays?: number } } | undefined>;
+  updateUser: (userId: string, data: { purgeAt: Date }) => Promise<unknown>;
+  invalidateUserCache?: (userId: string) => Promise<void>;
+}
+
+/**
+ * Slides a throwaway account's deletion time forward as it is used, so the window
+ * measures idleness rather than age. Called on every session refresh but writes at
+ * most once a day per account: while the stored time is still within a day of a
+ * full window, the renewal is skipped.
+ *
+ * Never throws — a session refresh must not fail because retention bookkeeping did.
+ */
+export async function renewAnonymousRetention({
+  user,
+  getAppConfig,
+  updateUser,
+  invalidateUserCache,
+}: RenewAnonymousRetentionParams): Promise<void> {
+  if (user.purgeAt == null) {
+    return;
+  }
+
+  const userId = user._id.toString();
+  try {
+    const appConfig = await getAppConfig?.();
+    const retentionDays =
+      appConfig?.registration?.anonymousRetentionDays ?? DEFAULT_ANONYMOUS_RETENTION_DAYS;
+    const renewed = Date.now() + retentionDays * ONE_DAY_MS;
+    if (new Date(user.purgeAt).getTime() > renewed - ONE_DAY_MS) {
+      return;
+    }
+
+    await updateUser(userId, { purgeAt: new Date(renewed) });
+    await invalidateUserCache?.(userId);
+  } catch (error) {
+    logger.warn('[renewAnonymousRetention] Could not extend the account retention window', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }

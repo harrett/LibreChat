@@ -1,11 +1,14 @@
 const cookies = require('cookie');
 const jwt = require('jsonwebtoken');
 const crypto = require('node:crypto');
+const { CacheKeys } = require('librechat-data-provider');
 const { logger, runAsSystem, tenantStorage } = require('@librechat/data-schemas');
 const {
   math,
   isEnabled,
   createAnonymousSession,
+  renewAnonymousRetention,
+  invalidateCachedAuthUserDoc,
   createAuthIdentityContext,
   createOpenIDRefreshOwnershipError,
   isOpenIDRefreshOwnershipError,
@@ -30,6 +33,7 @@ const {
   deleteTokens,
 } = require('~/models');
 const { getAppConfig } = require('~/server/services/Config');
+const { getLogStores } = require('~/cache');
 const { getGraphApiToken } = require('~/server/services/GraphTokenService');
 const { getRefreshTokenBridge } = require('~/server/services/RefreshTokenBridge');
 const {
@@ -44,6 +48,7 @@ const {
   releaseOpenIDRefreshFlightDelivery,
 } = require('~/server/services/OpenIDRefreshFlight');
 
+const authUserDocCacheStore = getLogStores(CacheKeys.AUTH_USER_DOC);
 const AUTH_REFRESH_USER_PROJECTION = '-password -__v -totpSecret -backupCodes -federatedTokens';
 /**
  * Max age (ms) LibreChat reuses a cached OpenID session token before forcing an IdP refresh.
@@ -654,6 +659,13 @@ const refreshController = async (req, res) => {
 
     if (session && session.expiration > new Date()) {
       const token = await setAuthTokens(userId, res, session, req);
+      await renewAnonymousRetention({
+        user,
+        getAppConfig,
+        updateUser,
+        invalidateUserCache: (id) =>
+          invalidateCachedAuthUserDoc(authUserDocCacheStore, { userId: id }),
+      });
 
       res.status(200).send({ token, user: sanitizeUserForAuthResponse(user) });
     } else if (req?.query?.retry) {

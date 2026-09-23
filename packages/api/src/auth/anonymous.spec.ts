@@ -4,6 +4,7 @@ import {
   DEFAULT_ANONYMOUS_RETENTION_DAYS,
   createAnonymousProvisioningLimiter,
   createAnonymousSession,
+  renewAnonymousRetention,
   ANONYMOUS_EMAIL_DOMAIN,
 } from './anonymous';
 
@@ -142,5 +143,68 @@ describe('createAnonymousProvisioningLimiter', () => {
 
     expect(limiter).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('renewAnonymousRetention', () => {
+  const renew = async (purgeAt: Date | undefined, anonymousRetentionDays?: number) => {
+    const writes: Array<{ userId: string; purgeAt: Date }> = [];
+    const invalidated: string[] = [];
+
+    await renewAnonymousRetention({
+      user: { _id: 'user-id', purgeAt },
+      getAppConfig: async () => ({ registration: { anonymousRetentionDays } }),
+      updateUser: async (userId, data) => {
+        writes.push({ userId, ...data });
+      },
+      invalidateUserCache: async (userId) => {
+        invalidated.push(userId);
+      },
+    });
+
+    return { writes, invalidated };
+  };
+
+  it('leaves an account without a purge time alone', async () => {
+    const { writes } = await renew(undefined);
+
+    expect(writes).toHaveLength(0);
+  });
+
+  it('slides the window forward once the stored time has aged a day', async () => {
+    const stale = new Date(Date.now() + 28 * 86_400_000);
+
+    const { writes, invalidated } = await renew(stale);
+
+    expect(writes).toHaveLength(1);
+    const days = (writes[0].purgeAt.getTime() - Date.now()) / 86_400_000;
+    expect(days).toBeGreaterThan(DEFAULT_ANONYMOUS_RETENTION_DAYS - 0.01);
+    expect(invalidated).toEqual(['user-id']);
+  });
+
+  it('skips the write while the window is still nearly full', async () => {
+    const fresh = new Date(Date.now() + 29.5 * 86_400_000);
+
+    const { writes, invalidated } = await renew(fresh);
+
+    expect(writes).toHaveLength(0);
+    expect(invalidated).toHaveLength(0);
+  });
+
+  it('measures the window against the configured retention', async () => {
+    const { writes } = await renew(new Date(Date.now() + 29 * 86_400_000), 2);
+
+    expect(writes).toHaveLength(0);
+  });
+
+  it('never throws when the write fails', async () => {
+    await expect(
+      renewAnonymousRetention({
+        user: { _id: 'user-id', purgeAt: new Date(Date.now() + 86_400_000) },
+        updateUser: async () => {
+          throw new Error('mongo is down');
+        },
+      }),
+    ).resolves.toBeUndefined();
   });
 });
