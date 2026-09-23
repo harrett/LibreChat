@@ -1,9 +1,36 @@
 import { randomUUID } from 'node:crypto';
 import { SystemRoles } from 'librechat-data-provider';
 import type { BalanceConfig, CreateUserRequest, IUser } from '@librechat/data-schemas';
-import type { Response, Request } from 'express';
+import type { RequestHandler, Response, Request } from 'express';
 
 export const ANONYMOUS_EMAIL_DOMAIN = 'anonymous.local';
+
+export interface AnonymousProvisioningLimiterParams {
+  getAppConfig: () => Promise<{ registration?: { anonymous?: boolean } } | undefined>;
+  limiter: RequestHandler;
+}
+
+/**
+ * Rate-limits only the requests that would mint a new account: a refresh carrying
+ * no cookie, on a deployment with anonymous access on. A browser presenting a
+ * refresh token is renewing a session it already has and is let through, so the
+ * limit never counts ordinary page loads.
+ */
+export function createAnonymousProvisioningLimiter({
+  getAppConfig,
+  limiter,
+}: AnonymousProvisioningLimiterParams): RequestHandler {
+  return async (req, res, next) => {
+    if (req.cookies?.refreshToken) {
+      return next();
+    }
+    const appConfig = await getAppConfig();
+    if (appConfig?.registration?.anonymous !== true) {
+      return next();
+    }
+    return limiter(req, res, next);
+  };
+}
 
 export type AnonymousUser = Pick<IUser, 'email' | 'username' | 'name' | 'role' | 'provider'> & {
   _id: string;

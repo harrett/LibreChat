@@ -1,6 +1,10 @@
-import type { Response, Request } from 'express';
+import type { RequestHandler, Response, Request } from 'express';
 import type { CreateAnonymousSessionParams } from './anonymous';
-import { createAnonymousSession, ANONYMOUS_EMAIL_DOMAIN } from './anonymous';
+import {
+  createAnonymousProvisioningLimiter,
+  createAnonymousSession,
+  ANONYMOUS_EMAIL_DOMAIN,
+} from './anonymous';
 
 const setup = (appConfig: CreateAnonymousSessionParams['appConfig']) => {
   const created: Parameters<CreateAnonymousSessionParams['createUser']>[] = [];
@@ -71,5 +75,46 @@ describe('createAnonymousSession', () => {
     const [first, second] = [await run(), await run()];
 
     expect(first?.user.email).not.toBe(second?.user.email);
+  });
+});
+
+describe('createAnonymousProvisioningLimiter', () => {
+  const run = async (
+    appConfig: { registration?: { anonymous?: boolean } } | undefined,
+    cookies: Record<string, string>,
+  ) => {
+    const limiter = jest.fn((_req, _res, next) => next()) as unknown as RequestHandler;
+    const next = jest.fn();
+    const middleware = createAnonymousProvisioningLimiter({
+      getAppConfig: async () => appConfig,
+      limiter,
+    });
+
+    await middleware({ cookies } as unknown as Request, {} as Response, next);
+
+    return { limiter, next };
+  };
+
+  it('limits a cookie-less refresh when anonymous access is on', async () => {
+    const { limiter } = await run({ registration: { anonymous: true } }, {});
+
+    expect(limiter).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets a browser renewing its own session through unmetered', async () => {
+    const { limiter, next } = await run(
+      { registration: { anonymous: true } },
+      { refreshToken: 'existing' },
+    );
+
+    expect(limiter).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not meter first visits when anonymous access is off', async () => {
+    const { limiter, next } = await run({ registration: {} }, {});
+
+    expect(limiter).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,5 +1,9 @@
 const express = require('express');
-const { createSetBalanceConfig, forceRefreshCloudFrontAuthCookies } = require('@librechat/api');
+const {
+  createSetBalanceConfig,
+  forceRefreshCloudFrontAuthCookies,
+  createAnonymousProvisioningLimiter,
+} = require('@librechat/api');
 const {
   resetPasswordRequestController,
   resetPasswordController,
@@ -27,6 +31,12 @@ const setBalanceConfig = createSetBalanceConfig({
   upsertBalanceFields,
 });
 
+/** Anonymous sessions are account creation, so they answer to the same limiter. */
+const anonymousProvisioningLimiter = createAnonymousProvisioningLimiter({
+  getAppConfig,
+  limiter: middleware.registerLimiter,
+});
+
 const router = express.Router();
 const getCloudFrontAuthCookieRefreshResult = (req, res) => {
   const warmedResult = req.cloudFrontAuthCookieRefreshResult;
@@ -51,7 +61,7 @@ router.post(
   setBalanceConfig,
   loginController,
 );
-router.post('/refresh', refreshController);
+router.post('/refresh', anonymousProvisioningLimiter, refreshController);
 router.post('/cloudfront/refresh', middleware.requireJwtAuth, (req, res) => {
   const result = getCloudFrontAuthCookieRefreshResult(req, res);
   if (!result.enabled) {
