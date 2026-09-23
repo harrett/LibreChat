@@ -1,4 +1,5 @@
 import type { SettingEntry, SettingsContextValue } from './types';
+import { TABS } from './types';
 
 export function normalize(value: string): string {
   return value.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
@@ -30,8 +31,11 @@ export function filterSettings(
   localize: (key: SettingEntry['labelKey']) => string,
 ): SearchResult[] {
   const results: SearchResult[] = [];
+  /** A hidden tab's settings stay out of search too — otherwise search is a back
+   * door into the very tab the sidebar refuses to show. */
+  const hiddenTabs = new Set(TABS.filter((t) => t.show && !t.show(ctx)).map((t) => t.id));
   for (const entry of entries) {
-    if (entry.show && !entry.show(ctx)) {
+    if (hiddenTabs.has(entry.tab) || (entry.show && !entry.show(ctx))) {
       continue;
     }
     const label = localize(entry.labelKey);

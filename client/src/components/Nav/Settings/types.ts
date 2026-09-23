@@ -159,6 +159,9 @@ export const TABS: TabMeta[] = [
       { id: 'billing', labelKey: 'com_ui_settings_section_billing' },
       { id: 'danger', labelKey: 'com_ui_settings_section_danger_zone', danger: true },
     ],
+    /** Sessions here are anonymous and passwordless: there is no profile, credential
+     * or billing identity behind them for a user to manage. */
+    show: () => false,
   },
   {
     id: SettingsTabValues.ABOUT,

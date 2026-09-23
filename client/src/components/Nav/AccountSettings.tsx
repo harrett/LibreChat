@@ -8,7 +8,6 @@ import {
   CircleHelp,
   Keyboard,
   LifeBuoy,
-  LogOut,
   Scale,
   ShieldCheck,
 } from 'lucide-react';
@@ -93,7 +92,7 @@ function HelpSubmenu({
 
 function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
   const localize = useLocalize();
-  const { user, isAuthenticated, logout } = useAuthContext();
+  const { user, isAuthenticated } = useAuthContext();
   const { data: startupConfig } = useGetStartupConfig();
   const balanceQuery = useGetUserBalance({
     enabled: !!isAuthenticated && startupConfig?.balance?.enabled,
@@ -139,10 +138,6 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
           translate: collapsed ? '4px 0' : '0 -4px',
         }}
       >
-        <div className="text-token-text-secondary ml-3 mr-2 py-2 text-sm" role="note">
-          {user?.email ?? localize('com_nav_user')}
-        </div>
-        <DropdownMenuSeparator />
         {startupConfig?.balance?.enabled === true && balanceQuery.data != null && (
           <>
             <div className="text-token-text-secondary ml-3 mr-2 py-2 text-sm" role="note">
@@ -169,11 +164,6 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
         >
           <GearIcon className="icon-md" aria-hidden="true" />
           {localize('com_nav_settings')}
-        </Menu.MenuItem>
-        <DropdownMenuSeparator />
-        <Menu.MenuItem onClick={() => logout()} className="select-item text-sm">
-          <LogOut className="icon-md" aria-hidden="true" />
-          {localize('com_nav_log_out')}
         </Menu.MenuItem>
       </Menu.Menu>
       {showArchived && (
