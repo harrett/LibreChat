@@ -1,6 +1,7 @@
 import type { RequestHandler, Response, Request } from 'express';
 import type { CreateAnonymousSessionParams } from './anonymous';
 import {
+  DEFAULT_ANONYMOUS_RETENTION_DAYS,
   createAnonymousProvisioningLimiter,
   createAnonymousSession,
   ANONYMOUS_EMAIL_DOMAIN,
@@ -67,6 +68,31 @@ describe('createAnonymousSession', () => {
       null,
       expect.anything(),
     );
+  });
+
+  it('stamps a purge time the TTL index can act on', async () => {
+    const { run, created } = setup({ registration: { anonymous: true } });
+
+    const before = Date.now();
+    await run();
+    const purgeAt = created[0][0].purgeAt as Date;
+
+    const days = (purgeAt.getTime() - before) / 86_400_000;
+    expect(days).toBeGreaterThan(DEFAULT_ANONYMOUS_RETENTION_DAYS - 0.01);
+    expect(days).toBeLessThanOrEqual(DEFAULT_ANONYMOUS_RETENTION_DAYS);
+  });
+
+  it('honors a configured retention window', async () => {
+    const { run, created } = setup({
+      registration: { anonymous: true, anonymousRetentionDays: 2 },
+    });
+
+    const before = Date.now();
+    await run();
+
+    const days = ((created[0][0].purgeAt as Date).getTime() - before) / 86_400_000;
+    expect(days).toBeLessThanOrEqual(2);
+    expect(days).toBeGreaterThan(1.99);
   });
 
   it('gives each caller a distinct identity', async () => {

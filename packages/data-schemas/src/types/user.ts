@@ -51,6 +51,9 @@ export interface IUser extends Document {
     refreshToken: string;
   }>;
   expiresAt?: Date;
+  /** Hard deletion time for a throwaway account, honored to the second by a TTL
+   * index — unlike `expiresAt`, whose index adds a further week on top. */
+  purgeAt?: Date;
   termsAccepted?: boolean;
   termsAcceptedAt?: Date | null;
   /** Internal fence that prevents agent-trigger admission during account deletion. */

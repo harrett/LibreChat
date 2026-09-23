@@ -123,6 +123,9 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
       type: Date,
       expires: 604800, // 7 days in seconds
     },
+    purgeAt: {
+      type: Date,
+    },
     termsAccepted: {
       type: Boolean,
       default: false,
@@ -204,6 +207,8 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
 );
 
 userSchema.index({ email: 1, tenantId: 1 }, { unique: true });
+/** Deletes the document at `purgeAt` itself; accounts without the field are untouched. */
+userSchema.index({ purgeAt: 1 }, { expireAfterSeconds: 0 });
 userSchema.index({ role: 1, tenantId: 1 });
 userSchema.index({ idOnTheSource: 1, openidIssuer: 1, tenantId: 1 });
 

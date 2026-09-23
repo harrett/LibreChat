@@ -4,6 +4,9 @@ import type { BalanceConfig, CreateUserRequest, IUser } from '@librechat/data-sc
 import type { RequestHandler, Response, Request } from 'express';
 
 export const ANONYMOUS_EMAIL_DOMAIN = 'anonymous.local';
+export const DEFAULT_ANONYMOUS_RETENTION_DAYS = 30;
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface AnonymousProvisioningLimiterParams {
   getAppConfig: () => Promise<{ registration?: { anonymous?: boolean } } | undefined>;
@@ -44,7 +47,10 @@ export interface AnonymousSession {
 
 export interface CreateAnonymousSessionParams {
   /** Resolved app config; the session is only issued when `registration.anonymous` is on. */
-  appConfig?: { registration?: { anonymous?: boolean }; balance?: BalanceConfig };
+  appConfig?: {
+    registration?: { anonymous?: boolean; anonymousRetentionDays?: number };
+    balance?: BalanceConfig;
+  };
   createUser: (
     data: CreateUserRequest,
     balanceConfig?: BalanceConfig,
@@ -67,6 +73,10 @@ export interface CreateAnonymousSessionParams {
  * no recoverable identity — the refresh cookie is the only way back to it, and the
  * `@anonymous.local` email domain is what marks it as one of these.
  *
+ * The account carries a `purgeAt` so a TTL index deletes it a fixed number of days
+ * after creation — the clock does not reset on use, so a browser that keeps chatting
+ * past the window loses its history and its stored provider key.
+ *
  * Returns `null` when anonymous access is off, leaving the caller's existing
  * "no refresh token" response in place.
  */
@@ -82,8 +92,8 @@ export async function createAnonymousSession({
   }
 
   const id = randomUUID();
-  /** ponytail: one account per cookie-less load, kept forever. Add a TTL or a
-   * per-IP limiter if this ever faces something noisier than a local browser. */
+  const retentionDays =
+    appConfig.registration?.anonymousRetentionDays ?? DEFAULT_ANONYMOUS_RETENTION_DAYS;
   const user = await createUser(
     {
       provider: 'local',
@@ -92,6 +102,7 @@ export async function createAnonymousSession({
       name: 'Guest',
       emailVerified: true,
       role: SystemRoles.USER,
+      purgeAt: new Date(Date.now() + retentionDays * ONE_DAY_MS),
     },
     appConfig.balance,
     true,
