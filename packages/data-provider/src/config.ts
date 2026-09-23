@@ -3045,6 +3045,9 @@ export const configSchema = z.object({
     .object({
       socialLogins: z.array(z.string()).optional(),
       allowedDomains: z.array(z.string()).optional(),
+      /** Serves chat without a sign-in step: a browser with no session is given a
+       * passwordless throwaway account instead of the login page. Off by default. */
+      anonymous: z.boolean().optional(),
       /** Milliseconds a started social login may take to reach its callback; defaults to `DEFAULT_OAUTH_STATE_TTL_MS`. */
       oauthStateTtlMs: z.number().int().min(60_000).max(3_600_000).optional(),
       /** OpenID discovery retries; an unset field falls back to its `OPENID_DISCOVERY_RETRY_*` env var, then the schema default. */

@@ -5,6 +5,7 @@ const { logger, runAsSystem, tenantStorage } = require('@librechat/data-schemas'
 const {
   math,
   isEnabled,
+  createAnonymousSession,
   createAuthIdentityContext,
   createOpenIDRefreshOwnershipError,
   isOpenIDRefreshOwnershipError,
@@ -24,9 +25,11 @@ const {
   deleteAllUserSessions,
   getUserById,
   findSession,
+  createUser,
   updateUser,
   deleteTokens,
 } = require('~/models');
+const { getAppConfig } = require('~/server/services/Config');
 const { getGraphApiToken } = require('~/server/services/GraphTokenService');
 const { getRefreshTokenBridge } = require('~/server/services/RefreshTokenBridge');
 const {
@@ -614,7 +617,16 @@ const refreshController = async (req, res) => {
   /** For non-OpenID users, read refresh token from cookies */
   const refreshToken = parsedCookies.refreshToken;
   if (!refreshToken) {
-    return res.status(200).send('Refresh token not provided');
+    const session = await createAnonymousSession({
+      appConfig: await getAppConfig(),
+      createUser,
+      setAuthTokens,
+      req,
+      res,
+    });
+    return session
+      ? res.status(200).send(session)
+      : res.status(200).send('Refresh token not provided');
   }
 
   try {
