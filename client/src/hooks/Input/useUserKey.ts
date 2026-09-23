@@ -18,9 +18,9 @@ const useUserKey = (endpoint: string) => {
   const checkUserKey = useUserKeyQuery(keyName);
 
   const getExpiry = useCallback(() => {
-    if (checkUserKey.data) {
-      return checkUserKey.data.expiresAt || 'never';
-    }
+    /** The server answers `null` for "no key stored" and `'never'` for a stored key
+     * with no expiry. Collapsing the two would claim a key that isn't there. */
+    return checkUserKey.data?.expiresAt ?? undefined;
   }, [checkUserKey.data]);
 
   const checkExpiry = useCallback(() => {
