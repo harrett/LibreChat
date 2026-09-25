@@ -530,4 +530,48 @@ describe('createImageAuthorizationMiddleware', () => {
     expect(deps.getAgent).not.toHaveBeenCalled();
     expect(deps.getAssistant).not.toHaveBeenCalled();
   });
+
+  it('authorizes the owner when a proxy stripped the sub-path prefix', async () => {
+    (deps.getBasePath as jest.Mock).mockReturnValue('/chat');
+    const token = signUser(VIEWER_ID);
+    const middleware = createImageAuthorizationMiddleware({}, deps);
+
+    await middleware(
+      createRequest(`/images/${VIEWER_ID}/profile.png`, `refreshToken=${token}`),
+      response,
+      next,
+    );
+
+    expect(next).toHaveBeenCalled();
+    expect(response.status).not.toHaveBeenCalledWith(403);
+  });
+
+  it('still authorizes when the proxy forwards the sub-path prefix', async () => {
+    (deps.getBasePath as jest.Mock).mockReturnValue('/chat');
+    const token = signUser(VIEWER_ID);
+    const middleware = createImageAuthorizationMiddleware({}, deps);
+
+    await middleware(
+      createRequest(`/chat/images/${VIEWER_ID}/profile.png`, `refreshToken=${token}`),
+      response,
+      next,
+    );
+
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('rejects traversal on a sub-path deployment too', async () => {
+    (deps.getBasePath as jest.Mock).mockReturnValue('/chat');
+    const token = signUser(VIEWER_ID);
+    const middleware = createImageAuthorizationMiddleware({}, deps);
+
+    await middleware(
+      createRequest(`/images/${VIEWER_ID}/..%2F..%2Fetc%2Fpasswd`, `refreshToken=${token}`),
+      response,
+      next,
+    );
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.status).toHaveBeenCalledWith(403);
+  });
 });

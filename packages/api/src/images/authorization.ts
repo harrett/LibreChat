@@ -112,6 +112,17 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function matchImagePath(cleanPath: string, basePath: string): RegExpMatchArray | null {
+  const imagesPath = `${basePath}/images`;
+  const imagesPrefix = `${imagesPath}/`;
+  const normalizedPath = cleanPath.startsWith(imagesPrefix)
+    ? `${imagesPrefix}${cleanPath.slice(imagesPrefix.length).replace(/^\/+/, '')}`
+    : cleanPath;
+  return normalizedPath.match(
+    new RegExp(`^${escapeRegExp(imagesPath)}/([a-f0-9]{24})/([^/]+)$`, 'i'),
+  );
+}
+
 function parseImagePath(originalUrl: string, basePath: string): ImagePath | null {
   if (!originalUrl || originalUrl.length > MAX_URL_LENGTH || originalUrl.includes('\0')) {
     return null;
@@ -135,14 +146,13 @@ function parseImagePath(originalUrl: string, basePath: string): ImagePath | null
   } catch {
     return null;
   }
-  const imagesPath = `${decodedBasePath}/images`;
-  const imagesPrefix = `${imagesPath}/`;
-  const normalizedPath = cleanPath.startsWith(imagesPrefix)
-    ? `${imagesPrefix}${cleanPath.slice(imagesPrefix.length).replace(/^\/+/, '')}`
-    : cleanPath;
-  const match = normalizedPath.match(
-    new RegExp(`^${escapeRegExp(imagesPath)}/([a-f0-9]{24})/([^/]+)$`, 'i'),
-  );
+  /** A sub-path deployment whose proxy strips the prefix before forwarding (Caddy's
+   * `handle_path`, nginx's `proxy_pass` with a trailing slash) delivers the request
+   * without it, so the un-prefixed form has to match as well — otherwise every image
+   * on such a deployment fails to parse and is denied. */
+  const match =
+    matchImagePath(cleanPath, decodedBasePath) ??
+    (decodedBasePath ? matchImagePath(cleanPath, '') : null);
   if (!match) {
     return null;
   }
