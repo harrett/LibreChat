@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, useCallback } from 'react';
 import { useRecoilValue } from 'recoil';
 import { useAtom, useStore } from 'jotai';
 import * as Popover from '@radix-ui/react-popover';
@@ -22,7 +22,11 @@ import type {
   TReasoningOverride,
 } from 'librechat-data-provider';
 import type { TranslationKeys } from '~/hooks';
-import { getReasoningStateKey, pendingReasoningOverrideFamily } from './Composer/state';
+import {
+  getReasoningStateKey,
+  pendingReasoningOverrideFamily,
+  selectedReasoningOverrideFamily,
+} from './Composer/state';
 import { useGetAgentByIdQuery, useGetEndpointsQuery } from '~/data-provider';
 import { formatTokens, resolveAgentTarget } from '~/utils';
 import { useAgentsMapContext } from '~/Providers';
@@ -120,7 +124,7 @@ export function ReasoningControl({
         <button
           type="button"
           disabled={disabled}
-          aria-label={`${localize('com_ui_reasoning_for_next_message')} ${displayValue}`}
+          aria-label={`${localize('com_ui_reasoning_for_conversation')} ${displayValue}`}
           className="text-text-secondary hover:bg-surface-hover hover:text-text-primary focus-visible:ring-text-primary data-[state=open]:bg-surface-hover data-[state=open]:text-text-primary inline-flex h-8 items-center justify-center gap-1.5 rounded-xl px-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
         >
           <BrainCircuit className="size-4" aria-hidden="true" />
@@ -143,7 +147,7 @@ export function ReasoningControl({
                 {label}
               </div>
               <div className="text-text-secondary truncate text-xs">
-                {localize('com_ui_reasoning_for_next_message')}
+                {localize('com_ui_reasoning_for_conversation')}
               </div>
             </div>
             <Popover.Close asChild>
@@ -278,7 +282,20 @@ export function useComposerReasoning({
   const endpointsConfig = useMemo(() => endpointsQuery.data ?? {}, [endpointsQuery.data]);
   const conversationId = conversation?.conversationId ?? Constants.NEW_CONVO;
   const reasoningStateKey = getReasoningStateKey(conversationId, index);
-  const [value, setValue] = useAtom(pendingReasoningOverrideFamily(reasoningStateKey));
+  const [pendingValue, setPendingValue] = useAtom(
+    pendingReasoningOverrideFamily(reasoningStateKey),
+  );
+  const [selectedValue, setSelectedValue] = useAtom(
+    selectedReasoningOverrideFamily(reasoningStateKey),
+  );
+  const value = pendingValue ?? selectedValue;
+  const setValue = useCallback(
+    (nextValue: TReasoningOverride | undefined) => {
+      setSelectedValue(nextValue);
+      setPendingValue(nextValue);
+    },
+    [setPendingValue, setSelectedValue],
+  );
   const reasoningStore = useStore();
   const placeholderStateKey = getReasoningStateKey(null, index);
   const submission = useRecoilValue(store.submissionByIndex(index));
@@ -311,15 +328,17 @@ export function useComposerReasoning({
     if (previous === reasoningStateKey || previous !== placeholderStateKey || !hasLiveSubmission) {
       return;
     }
-    const pending = reasoningStore.get(pendingReasoningOverrideFamily(previous));
-    if (pending == null) {
-      return;
-    }
-    reasoningStore.set(pendingReasoningOverrideFamily(previous), undefined);
-    /* Never overwrite a choice already made under the durable key: a restore
-       path (queued-message edit) can have written there first. */
-    if (reasoningStore.get(pendingReasoningOverrideFamily(reasoningStateKey)) == null) {
-      reasoningStore.set(pendingReasoningOverrideFamily(reasoningStateKey), pending);
+    for (const family of [pendingReasoningOverrideFamily, selectedReasoningOverrideFamily]) {
+      const previousValue = reasoningStore.get(family(previous));
+      if (previousValue == null) {
+        continue;
+      }
+      reasoningStore.set(family(previous), undefined);
+      /* Preserve choices already made under the durable key, and migrate
+         consumed selections without staging them again during a live run. */
+      if (reasoningStore.get(family(reasoningStateKey)) == null) {
+        reasoningStore.set(family(reasoningStateKey), previousValue);
+      }
     }
   }, [
     conversationId,

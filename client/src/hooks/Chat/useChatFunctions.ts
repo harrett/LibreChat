@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { v4 } from 'uuid';
 import { useStore } from 'jotai';
 import { cloneDeep } from 'lodash';
@@ -43,13 +43,13 @@ import {
   stripStreamedIndexStamps,
 } from '~/utils';
 import {
-  getReasoningStateKey,
-  pendingReasoningOverrideFamily,
-} from '~/components/Chat/Input/Composer/state';
-import {
   withSubmittedCodeDecision,
   resolveSubmittedCodeApprovalMode,
 } from '~/hooks/Agents/codeDecision';
+import {
+  getReasoningStateKey,
+  takeReasoningOverride,
+} from '~/components/Chat/Input/Composer/state';
 import useFocusRegeneratedResponse from '~/hooks/Chat/useFocusRegeneratedResponse';
 import useGetConversation from '~/hooks/Conversations/useGetConversation';
 import useCodeApprovalMode from '~/hooks/Agents/useCodeApprovalMode';
@@ -330,18 +330,6 @@ export default function useChatFunctions({
     [],
   );
 
-  const drainPendingReasoning = useCallback(
-    (stateKey: string): TMessage['reasoningOverride'] => {
-      const reasoningAtom = pendingReasoningOverrideFamily(stateKey);
-      const reasoningOverride = reasoningStore.get(reasoningAtom);
-      if (reasoningOverride != null) {
-        reasoningStore.set(reasoningAtom, undefined);
-      }
-      return reasoningOverride;
-    },
-    [reasoningStore],
-  );
-
   const ask: TAskFunction = (
     {
       text,
@@ -517,7 +505,10 @@ export default function useChatFunctions({
     }
     let reasoningOverride = overrideReasoning ?? undefined;
     if (overrideReasoning === undefined && !regenerateShaped && !isContinued && !isEdited) {
-      reasoningOverride = drainPendingReasoning(getReasoningStateKey(conversationId, index));
+      reasoningOverride = takeReasoningOverride(
+        reasoningStore,
+        getReasoningStateKey(conversationId, index),
+      );
     }
     if (reasoningOverride != null) {
       const isAgent = isAgentsEndpoint(endpoint);

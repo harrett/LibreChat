@@ -19,10 +19,27 @@ export const pendingReasoningOverrideFamily = atomFamily((_conversationId: strin
   atom<TMessage['reasoningOverride']>(undefined),
 );
 
+/** The user's conversation choice survives submission; pending changes still
+ * require a new generation instead of steering the running one. */
+export const selectedReasoningOverrideFamily = atomFamily((_conversationId: string) =>
+  atom<TMessage['reasoningOverride']>(undefined),
+);
+
+export const takeReasoningOverride = (
+  jotaiStore: ReturnType<typeof createStore>,
+  stateKey: string,
+): TMessage['reasoningOverride'] => {
+  const pendingAtom = pendingReasoningOverrideFamily(stateKey);
+  const value =
+    jotaiStore.get(pendingAtom) ?? jotaiStore.get(selectedReasoningOverrideFamily(stateKey));
+  jotaiStore.set(pendingAtom, undefined);
+  return value;
+};
+
 /** Landing-page lift is composer-owned UI state, scoped to its split pane. */
 export const composerLiftFamily = atomFamily((_index: number) => atom(0));
 
-/** Release every staged reasoning selection except the `keep` keys. A selection
+/** Release every reasoning selection except the `keep` keys. A selection
  * survives navigation by design, so members of conversations no longer on
  * screen still hold one; clearing only the mounted panes would carry them
  * across a sign-out. */
@@ -30,11 +47,13 @@ export const clearPendingReasoningOverrides = (
   jotaiStore: ReturnType<typeof createStore>,
   keep: ReadonlySet<string> = new Set(),
 ) => {
-  for (const key of Array.from(pendingReasoningOverrideFamily.getParams())) {
-    if (keep.has(key)) {
-      continue;
+  for (const family of [pendingReasoningOverrideFamily, selectedReasoningOverrideFamily]) {
+    for (const key of Array.from(family.getParams())) {
+      if (keep.has(key)) {
+        continue;
+      }
+      jotaiStore.set(family(key), undefined);
+      family.remove(key);
     }
-    jotaiStore.set(pendingReasoningOverrideFamily(key), undefined);
-    pendingReasoningOverrideFamily.remove(key);
   }
 };

@@ -30,6 +30,7 @@ import {
 import {
   getReasoningStateKey,
   pendingReasoningOverrideFamily,
+  selectedReasoningOverrideFamily,
 } from '~/components/Chat/Input/Composer/state';
 import { revealedQueuedTurnFamily, pendingSteerCancelClientIdsFamily } from '~/store/steer';
 import useSteering, { hasLiveRunPause, mergeQueuedTurnFileMetadata } from '../useSteering';
@@ -4194,6 +4195,31 @@ describe('useSteering', () => {
         reasoningOverride: { key: 'reasoning_effort', value: ReasoningEffort.high },
       });
       expect(result.current.pendingReasoning).toBeUndefined();
+    });
+
+    it('keeps the selected reasoning on queued turns without blocking unchanged live steering', () => {
+      const { result } = setupWithContext();
+      const override = { key: 'reasoning_effort', value: ReasoningEffort.high } as const;
+      act(() => {
+        contextStore.set(selectedReasoningOverrideFamily(CONVO_ID), override);
+      });
+
+      expect(result.current.steering.pendingReasoningOverride).toBeUndefined();
+      expect(result.current.steering.effectiveAction).toBe('steer');
+
+      for (const text of ['First queued turn', 'Second queued turn']) {
+        act(() => {
+          result.current.steering.queueFromComposer(text);
+        });
+      }
+
+      expect(result.current.queue).toHaveLength(2);
+      expect(
+        result.current.queue.every(
+          (item) => item.reasoningOverride?.value === ReasoningEffort.high,
+        ),
+      ).toBe(true);
+      expect(contextStore.get(selectedReasoningOverrideFamily(CONVO_ID))).toEqual(override);
     });
 
     /* The interrupt-and-steer chord promises to keep the partial answer. With

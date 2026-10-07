@@ -67,6 +67,7 @@ import {
 import {
   getReasoningStateKey,
   pendingReasoningOverrideFamily,
+  takeReasoningOverride,
 } from '~/components/Chat/Input/Composer/state';
 import { hasQueuedIntent, acquireQueueSendLock, releaseQueueSendLock } from '~/utils/queueIntent';
 import { revealedQueuedTurnFamily, pendingSteerCancelClientIdsFamily } from '~/store/steer';
@@ -1339,17 +1340,12 @@ export default function useSteering({
         const manualSkills = snapshot
           .getLoadable(store.pendingManualSkillsByConvoId(conversationId))
           .getValue();
-        const reasoningOverride = reasoningStore.get(
-          pendingReasoningOverrideFamily(reasoningStateKey),
-        );
+        const reasoningOverride = takeReasoningOverride(reasoningStore, reasoningStateKey);
         if (quotes.length > 0) {
           reset(store.pendingQuotesByConvoId(conversationId));
         }
         if (manualSkills.length > 0) {
           reset(store.pendingManualSkillsByConvoId(conversationId));
-        }
-        if (reasoningOverride != null) {
-          reasoningStore.set(pendingReasoningOverrideFamily(reasoningStateKey), undefined);
         }
         return {
           ...(quotes.length > 0 && { quotes }),

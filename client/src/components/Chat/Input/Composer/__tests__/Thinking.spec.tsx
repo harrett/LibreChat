@@ -120,7 +120,7 @@ describe('Thinking', () => {
     } as SettingDefinition;
     renderInComposer({ index: 1 });
 
-    fireEvent.click(screen.getByRole('button', { name: /com_ui_reasoning_for_next_message/ }));
+    fireEvent.click(screen.getByRole('button', { name: /com_ui_reasoning_for_conversation/ }));
     const slider = screen.getByRole('slider');
     slider.focus();
     fireEvent.keyDown(slider, { key: 'ArrowRight' });

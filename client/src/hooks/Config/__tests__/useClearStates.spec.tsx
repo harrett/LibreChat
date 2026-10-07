@@ -3,7 +3,10 @@ import { RecoilRoot } from 'recoil';
 import { act, renderHook } from '@testing-library/react';
 import { ReasoningEffort } from 'librechat-data-provider';
 import { createStore, Provider as JotaiProvider } from 'jotai';
-import { pendingReasoningOverrideFamily } from '~/components/Chat/Input/Composer/state';
+import {
+  pendingReasoningOverrideFamily,
+  selectedReasoningOverrideFamily,
+} from '~/components/Chat/Input/Composer/state';
 import { filesDialogTriggerAtom, showFilesDialogAtom } from '~/store/filesDialog';
 import useClearStates from '../useClearStates';
 
@@ -32,11 +35,12 @@ describe('useClearStates', () => {
 
   /* A staged selection survives navigation, so a conversation that is no longer
      on screen still holds one; only the mounted panes used to be cleared. */
-  it('drops staged reasoning for every conversation, mounted or not', async () => {
+  it('drops staged and selected reasoning for every conversation, mounted or not', async () => {
     const jotaiStore = createStore();
     const staged = { key: 'reasoning_effort' as const, value: ReasoningEffort.high };
     jotaiStore.set(pendingReasoningOverrideFamily('unmounted-conversation'), staged);
     jotaiStore.set(pendingReasoningOverrideFamily('new:1'), staged);
+    jotaiStore.set(selectedReasoningOverrideFamily('unmounted-selected-conversation'), staged);
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <JotaiProvider store={jotaiStore}>
         <RecoilRoot>{children}</RecoilRoot>
@@ -49,6 +53,7 @@ describe('useClearStates', () => {
     });
 
     expect(Array.from(pendingReasoningOverrideFamily.getParams())).toEqual([]);
+    expect(Array.from(selectedReasoningOverrideFamily.getParams())).toEqual([]);
     expect(
       jotaiStore.get(pendingReasoningOverrideFamily('unmounted-conversation')),
     ).toBeUndefined();

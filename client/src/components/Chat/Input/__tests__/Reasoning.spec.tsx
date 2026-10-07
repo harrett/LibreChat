@@ -9,7 +9,11 @@ import type {
   TSubmission,
 } from 'librechat-data-provider';
 import type { ReactNode } from 'react';
-import { getReasoningStateKey, pendingReasoningOverrideFamily } from '../Composer/state';
+import {
+  getReasoningStateKey,
+  pendingReasoningOverrideFamily,
+  selectedReasoningOverrideFamily,
+} from '../Composer/state';
 import { ReasoningControl, useComposerReasoning } from '../Reasoning';
 import store from '~/store';
 
@@ -76,7 +80,7 @@ const budgetSetting: SettingDefinition = {
 };
 
 describe('ReasoningControl', () => {
-  it('renders a compact, localized disclosure for the next message', async () => {
+  it('renders a compact, localized disclosure for the conversation', async () => {
     render(
       <ReasoningControl
         index={0}
@@ -87,7 +91,7 @@ describe('ReasoningControl', () => {
     );
 
     const trigger = screen.getByRole('button', {
-      name: 'com_ui_reasoning_for_next_message com_ui_medium',
+      name: 'com_ui_reasoning_for_conversation com_ui_medium',
     });
 
     fireEvent.click(trigger);
@@ -108,7 +112,7 @@ describe('ReasoningControl', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /com_ui_reasoning_for_next_message/ }));
+    fireEvent.click(screen.getByRole('button', { name: /com_ui_reasoning_for_conversation/ }));
     const slider = screen.getByRole('slider', { name: 'com_endpoint_reasoning_effort' });
     expect(slider).toHaveAttribute('aria-valuenow', '3');
     expect(slider).toHaveAttribute('aria-valuetext', 'com_ui_medium');
@@ -130,7 +134,7 @@ describe('ReasoningControl', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /com_ui_reasoning_for_next_message/ }));
+    fireEvent.click(screen.getByRole('button', { name: /com_ui_reasoning_for_conversation/ }));
     const dialog = screen.getByRole('dialog', { name: 'com_endpoint_reasoning_effort' });
 
     expect(dialog).toBeVisible();
@@ -148,7 +152,7 @@ describe('ReasoningControl', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /com_ui_reasoning_for_next_message/ }));
+    fireEvent.click(screen.getByRole('button', { name: /com_ui_reasoning_for_conversation/ }));
     const slider = screen.getByRole('slider', { name: 'com_endpoint_thinking_budget' });
     expect(slider).toHaveAttribute('aria-valuemin', '128');
     expect(slider).toHaveAttribute('aria-valuemax', '32768');
@@ -178,7 +182,7 @@ describe('ReasoningControl', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /com_ui_reasoning_for_next_message/ }));
+    fireEvent.click(screen.getByRole('button', { name: /com_ui_reasoning_for_conversation/ }));
     const input = screen.getByRole('spinbutton', { name: 'com_endpoint_thinking_budget' });
     fireEvent.change(input, { target: { value: '16' } });
     fireEvent.blur(input);
@@ -197,7 +201,7 @@ describe('ReasoningControl', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /com_ui_reasoning_for_next_message/ }));
+    fireEvent.click(screen.getByRole('button', { name: /com_ui_reasoning_for_conversation/ }));
     const input = screen.getByRole('spinbutton', { name: 'com_endpoint_thinking_budget' });
     fireEvent.focus(input);
     fireEvent.blur(input);
@@ -218,7 +222,7 @@ describe('ReasoningControl', () => {
         />,
       );
 
-      fireEvent.click(screen.getByRole('button', { name: /com_ui_reasoning_for_next_message/ }));
+      fireEvent.click(screen.getByRole('button', { name: /com_ui_reasoning_for_conversation/ }));
       const input = screen.getByRole('spinbutton', { name: 'com_endpoint_thinking_budget' });
       fireEvent.change(input, { target: { value: '' } });
       fireEvent.blur(input);
@@ -281,6 +285,14 @@ describe('useComposerReasoning', () => {
     });
     expect(conversation.reasoning_effort).toBe(ReasoningEffort.medium);
 
+    act(() => {
+      reasoningStore.set(pendingReasoningOverrideFamily('reasoning-conversation'), undefined);
+    });
+    expect(rendered.result.current?.value).toEqual({
+      key: 'reasoning_effort',
+      value: ReasoningEffort.high,
+    });
+
     rendered.rerender({
       activeConversation: { ...conversation, model: 'gpt-5-mini' },
       enabled: true,
@@ -291,6 +303,9 @@ describe('useComposerReasoning', () => {
         reasoningStore.get(pendingReasoningOverrideFamily('reasoning-conversation')),
       ).toBeUndefined(),
     );
+    expect(
+      reasoningStore.get(selectedReasoningOverrideFamily('reasoning-conversation')),
+    ).toBeUndefined();
 
     rendered.rerender({
       activeConversation: conversation,
@@ -491,66 +506,80 @@ describe('useComposerReasoning', () => {
   /* The window between the first submit and the `created`/`sync` event: the
      selection for the next turn is written under the placeholder key, and the
      durable id arrives afterwards. */
-  it('carries a selection made before the id resolves onto the saved conversation', async () => {
-    const reasoningStore = createStore();
-    const conversation = {
-      conversationId: Constants.NEW_CONVO,
-      endpoint: 'openAI',
-      model: 'gpt-5',
-      reasoning_effort: ReasoningEffort.medium,
-    } as TConversation;
-    const submission = {
-      conversation: { conversationId: Constants.NEW_CONVO },
-      userMessage: { conversationId: Constants.NEW_CONVO },
-    } as TSubmission;
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <RecoilRoot
-        initializeState={(snapshot) => snapshot.set(store.submissionByIndex(0), submission)}
-      >
-        <JotaiProvider store={reasoningStore}>{children}</JotaiProvider>
-      </RecoilRoot>
-    );
-    const rendered = renderHook(
-      ({ activeConversation }: { activeConversation: TConversation }) =>
-        useComposerReasoning({
-          conversation: activeConversation,
-          index: 0,
-          hasAddedConversation: false,
-          enabled: true,
-        }),
-      { initialProps: { activeConversation: conversation }, wrapper },
-    );
-    const placeholderKey = getReasoningStateKey(Constants.NEW_CONVO, 0);
+  it.each([false, true])(
+    'carries a selection onto the saved conversation (submitted: %s)',
+    async (submitted) => {
+      const reasoningStore = createStore();
+      const conversation = {
+        conversationId: Constants.NEW_CONVO,
+        endpoint: 'openAI',
+        model: 'gpt-5',
+        reasoning_effort: ReasoningEffort.medium,
+      } as TConversation;
+      const submission = {
+        conversation: { conversationId: Constants.NEW_CONVO },
+        userMessage: { conversationId: Constants.NEW_CONVO },
+      } as TSubmission;
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <RecoilRoot
+          initializeState={(snapshot) => snapshot.set(store.submissionByIndex(0), submission)}
+        >
+          <JotaiProvider store={reasoningStore}>{children}</JotaiProvider>
+        </RecoilRoot>
+      );
+      const rendered = renderHook(
+        ({ activeConversation }: { activeConversation: TConversation }) =>
+          useComposerReasoning({
+            conversation: activeConversation,
+            index: 0,
+            hasAddedConversation: false,
+            enabled: true,
+          }),
+        { initialProps: { activeConversation: conversation }, wrapper },
+      );
+      const placeholderKey = getReasoningStateKey(Constants.NEW_CONVO, 0);
 
-    act(() => {
-      rendered.result.current?.setValue({
+      act(() => {
+        rendered.result.current?.setValue({
+          key: 'reasoning_effort',
+          value: ReasoningEffort.high,
+        });
+      });
+      expect(reasoningStore.get(pendingReasoningOverrideFamily(placeholderKey))).toEqual({
         key: 'reasoning_effort',
         value: ReasoningEffort.high,
       });
-    });
-    expect(reasoningStore.get(pendingReasoningOverrideFamily(placeholderKey))).toEqual({
-      key: 'reasoning_effort',
-      value: ReasoningEffort.high,
-    });
+      if (submitted) {
+        act(() => {
+          reasoningStore.set(pendingReasoningOverrideFamily(placeholderKey), undefined);
+        });
+      }
 
-    rendered.rerender({
-      activeConversation: { ...conversation, conversationId: 'settled-conversation' },
-    });
+      rendered.rerender({
+        activeConversation: { ...conversation, conversationId: 'settled-conversation' },
+      });
 
-    await waitFor(() =>
-      expect(reasoningStore.get(pendingReasoningOverrideFamily('settled-conversation'))).toEqual({
+      await waitFor(() =>
+        expect(reasoningStore.get(selectedReasoningOverrideFamily('settled-conversation'))).toEqual(
+          {
+            key: 'reasoning_effort',
+            value: ReasoningEffort.high,
+          },
+        ),
+      );
+      expect(reasoningStore.get(pendingReasoningOverrideFamily('settled-conversation'))).toEqual(
+        submitted ? undefined : { key: 'reasoning_effort', value: ReasoningEffort.high },
+      );
+      expect(rendered.result.current?.value).toEqual({
         key: 'reasoning_effort',
         value: ReasoningEffort.high,
-      }),
-    );
-    expect(rendered.result.current?.value).toEqual({
-      key: 'reasoning_effort',
-      value: ReasoningEffort.high,
-    });
-    /* Left behind, the placeholder value would leak into the next new chat in
+      });
+      /* Left behind, the placeholder value would leak into the next new chat in
        this pane. */
-    expect(reasoningStore.get(pendingReasoningOverrideFamily(placeholderKey))).toBeUndefined();
-  });
+      expect(reasoningStore.get(pendingReasoningOverrideFamily(placeholderKey))).toBeUndefined();
+      expect(reasoningStore.get(selectedReasoningOverrideFamily(placeholderKey))).toBeUndefined();
+    },
+  );
 
   it('does not carry a new-chat selection into an unrelated conversation', async () => {
     const reasoningStore = createStore();

@@ -19,7 +19,10 @@ import type {
 } from 'librechat-data-provider';
 import type { ReactNode } from 'react';
 import type { ExtendedFile } from '~/common';
-import { pendingReasoningOverrideFamily } from '~/components/Chat/Input/Composer/state';
+import {
+  pendingReasoningOverrideFamily,
+  selectedReasoningOverrideFamily,
+} from '~/components/Chat/Input/Composer/state';
 import { activeUsageResponseIdFamily, pendingUsageFamily } from '~/store/usage';
 import { revealedQueuedTurnFamily } from '~/store/steer';
 import useChatFunctions from '../useChatFunctions';
@@ -635,6 +638,32 @@ describe('useChatFunctions ask', () => {
     expect(submission.userMessage.reasoningOverride).toEqual(override);
     expect(reasoningStore.get(pendingReasoningOverrideFamily('conversation-1'))).toBeUndefined();
   });
+  it.each([EModelEndpoint.agents, EModelEndpoint.openAI])(
+    'keeps the selected reasoning on consecutive %s submissions',
+    (endpoint) => {
+      const override = { key: 'reasoning_effort', value: 'high' } as TReasoningOverride;
+      const { result, setSubmission, reasoningStore } = renderAsk([], 'conversation-1', {
+        endpoint,
+        model: 'gpt-5.1',
+        reasoningOverride: override,
+      });
+      reasoningStore.set(selectedReasoningOverrideFamily('conversation-1'), override);
+
+      for (const text of ['First message', 'Follow-up']) {
+        act(() => {
+          result.current.ask({ text });
+        });
+        const submission = setSubmission.mock.calls.at(-1)?.[0] as TSubmission;
+        expect(submission.userMessage.reasoningOverride).toEqual(override);
+        expect(
+          reasoningStore.get(pendingReasoningOverrideFamily('conversation-1')),
+        ).toBeUndefined();
+        expect(reasoningStore.get(selectedReasoningOverrideFamily('conversation-1'))).toEqual(
+          override,
+        );
+      }
+    },
+  );
   it('keeps a staged override for an ephemeral agent resolved from its encoded target', () => {
     const override = { key: 'reasoning_effort', value: 'high' } as TReasoningOverride;
     const { result, setSubmission } = renderAsk([], 'conversation-1', {
