@@ -1,4 +1,5 @@
 import { useState, memo, useRef } from 'react';
+import { useSetAtom } from 'jotai';
 import { useSetRecoilState } from 'recoil';
 import * as Menu from '@ariakit/react/menu';
 import { GearIcon, DropdownMenuSeparator, Avatar } from '@librechat/client';
@@ -6,17 +7,19 @@ import {
   Archive,
   ChevronRight,
   CircleHelp,
+  Files,
   Keyboard,
   LifeBuoy,
   Scale,
   ShieldCheck,
 } from 'lucide-react';
 import { ArchivedChatsModal } from '~/components/Nav/SettingsTabs/General/ArchivedChatsModal';
+import { filesDialogTriggerAtom, showFilesDialogAtom } from '~/store/filesDialog';
 import { useGetStartupConfig, useGetUserBalance } from '~/data-provider';
 import { useAuthContext } from '~/hooks/AuthContext';
+import { settingsOpenAtom } from './Settings';
 import { openInNewTab } from '~/utils';
 import { useLocalize } from '~/hooks';
-import Settings from './Settings';
 import store from '~/store';
 
 function HelpSubmenu({
@@ -46,12 +49,12 @@ function HelpSubmenu({
       >
         <CircleHelp className="icon-md" aria-hidden="true" />
         <span className="flex-1 text-left">{localize('com_nav_help')}</span>
-        <ChevronRight className="h-4 w-4 text-text-secondary" aria-hidden="true" />
+        <ChevronRight className="text-text-secondary h-4 w-4" aria-hidden="true" />
       </Menu.MenuItem>
       <Menu.Menu
         portal
         gutter={12}
-        className="account-settings-popover popover-ui popover-from-left z-[126] w-[244px] rounded-lg"
+        className="account-settings-popover popover-ui popover-from-left z-[126] w-[min(15.25rem,90vw)] rounded-lg"
       >
         {hasHelpFaq && (
           <Menu.MenuItem
@@ -97,7 +100,9 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
   const balanceQuery = useGetUserBalance({
     enabled: !!isAuthenticated && startupConfig?.balance?.enabled,
   });
-  const [showSettings, setShowSettings] = useState(false);
+  const setShowSettings = useSetAtom(settingsOpenAtom);
+  const setShowFiles = useSetAtom(showFilesDialogAtom);
+  const setFilesDialogTrigger = useSetAtom(filesDialogTriggerAtom);
   const setShowShortcutsDialog = useSetRecoilState(store.showShortcutsDialog);
   const [showArchived, setShowArchived] = useState(false);
   const accountSettingsButtonRef = useRef<HTMLButtonElement>(null);
@@ -110,20 +115,18 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
         data-testid="nav-user"
         className={
           collapsed
-            ? 'flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-surface-active-alt aria-[expanded=true]:bg-surface-active-alt'
-            : 'mt-text-sm flex h-auto w-full items-center gap-2 rounded-xl p-2 text-sm transition-all duration-200 ease-in-out hover:bg-surface-active-alt aria-[expanded=true]:bg-surface-active-alt'
+            ? 'hover:bg-surface-nav-hover aria-[expanded=true]:bg-surface-nav-selected flex h-9 w-9 items-center justify-center rounded-lg transition-colors'
+            : 'hover:bg-surface-nav-hover aria-[expanded=true]:bg-surface-nav-selected flex h-auto w-full items-center gap-2 rounded-xl p-2 text-sm transition-all duration-200 ease-in-out'
         }
       >
-        <div
-          className={collapsed ? 'size-7 flex-shrink-0' : '-ml-0.9 -mt-0.8 h-8 w-8 flex-shrink-0'}
-        >
+        <div className={collapsed ? 'size-7 shrink-0' : 'h-8 w-8 shrink-0'}>
           <div className="relative flex">
             <Avatar user={user} size={collapsed ? 28 : 32} />
           </div>
         </div>
         {!collapsed && (
           <div
-            className="mt-2 grow overflow-hidden text-ellipsis whitespace-nowrap text-left text-text-primary"
+            className="text-text-primary mt-2 grow overflow-hidden text-left text-ellipsis whitespace-nowrap"
             style={{ marginTop: '0', marginLeft: '0' }}
           >
             {user?.name ?? user?.username ?? localize('com_nav_user')}
@@ -132,7 +135,7 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
       </Menu.MenuButton>
       <Menu.Menu
         portal
-        className="account-settings-popover popover-ui z-[125] w-[305px] rounded-lg md:w-[244px]"
+        className="account-settings-popover popover-ui z-[125] w-[min(19.0625rem,90vw)] rounded-lg md:w-[min(15.25rem,90vw)]"
         style={{
           transformOrigin: collapsed ? 'left bottom' : 'bottom',
           translate: collapsed ? '4px 0' : '0 -4px',
@@ -140,7 +143,7 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
       >
         {startupConfig?.balance?.enabled === true && balanceQuery.data != null && (
           <>
-            <div className="text-token-text-secondary ml-3 mr-2 py-2 text-sm" role="note">
+            <div className="text-text-secondary mr-2 ml-3 py-2 text-sm" role="note">
               {localize('com_nav_balance')}:{' '}
               {new Intl.NumberFormat().format(Math.round(balanceQuery.data.tokenCredits))}
             </div>
@@ -156,6 +159,21 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
         <Menu.MenuItem onClick={() => setShowArchived(true)} className="select-item text-sm">
           <Archive className="icon-md" aria-hidden="true" />
           {localize('com_nav_archived_chats')}
+        </Menu.MenuItem>
+
+        <Menu.MenuItem
+          onClick={() => {
+            /** The menu is gone by the time the dialog captures focus, so the
+             *  account button has to be named here or focus returns to the
+             *  document body when the dialog closes. */
+            setFilesDialogTrigger(accountSettingsButtonRef);
+            setShowFiles(true);
+          }}
+          className="select-item text-sm"
+          data-testid="nav-files"
+        >
+          <Files className="icon-md" aria-hidden="true" />
+          {localize('com_nav_my_files')}
         </Menu.MenuItem>
         <Menu.MenuItem
           onClick={() => setShowSettings(true)}
@@ -173,7 +191,6 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
           triggerRef={accountSettingsButtonRef}
         />
       )}
-      {showSettings && <Settings open={showSettings} onOpenChange={setShowSettings} />}
     </Menu.MenuProvider>
   );
 }

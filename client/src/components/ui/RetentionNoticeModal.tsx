@@ -34,7 +34,7 @@ export default function RetentionNoticeModal({ purgeAt }: { purgeAt?: string }) 
         showCloseButton={false}
         showCancelButton={false}
         main={
-          <p className="px-2 py-1 text-sm text-text-primary">
+          <p className="text-text-primary px-2 py-1 text-sm">
             {localize('com_ui_retention_notice', { 0: days })}
           </p>
         }
