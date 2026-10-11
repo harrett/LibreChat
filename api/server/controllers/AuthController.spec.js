@@ -2480,6 +2480,9 @@ describe('refreshController – LibreChat path', () => {
     expect(getUserById).toHaveBeenCalledTimes(2);
     expect(createUser).not.toHaveBeenCalled();
     expect(res.send).toHaveBeenCalledWith(expect.objectContaining({ token: 'local-app-token' }));
+    expect(updateUser.mock.invocationCallOrder[0]).toBeLessThan(
+      setAuthTokens.mock.invocationCallOrder[0],
+    );
   });
 
   it('does not renew anonymous retention for a revoked refresh session', async () => {

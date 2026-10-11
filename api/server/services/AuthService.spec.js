@@ -1630,6 +1630,58 @@ describe('CloudFront cookie integration', () => {
 
       expect(result).toBe('mock-access-token');
     });
+
+    it('keeps an anonymous session alive for its retention window', async () => {
+      const purgeAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      getUserById.mockResolvedValue({ _id: 'user-123', tenantId: 'tenantA', purgeAt });
+      createSession.mockResolvedValue({
+        session: { expiration: purgeAt },
+        refreshToken: 'anonymous-refresh-token',
+      });
+      const res = mockResponse();
+
+      await setAuthTokens('user-123', res);
+
+      expect(createSession).toHaveBeenCalledWith('user-123', {
+        expiresIn: 604800000,
+        expiration: purgeAt,
+      });
+      expect(res._cookies.refreshToken.options.expires).toEqual(purgeAt);
+    });
+
+    it('does not rotate an anonymous refresh token while its session is current', async () => {
+      const purgeAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const session = {
+        _id: 'session-id',
+        expiration: purgeAt,
+      };
+      const req = mockRequest({}, { refreshToken: 'anonymous-refresh-token' });
+      const res = mockResponse();
+      getUserById.mockResolvedValue({ _id: 'user-123', tenantId: 'tenantA', purgeAt });
+
+      await setAuthTokens('user-123', res, session, req);
+
+      expect(generateRefreshToken).not.toHaveBeenCalled();
+      expect(res._cookies.refreshToken.value).toBe('anonymous-refresh-token');
+    });
+
+    it('extends an anonymous session when retention was renewed', async () => {
+      const purgeAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const session = {
+        _id: 'session-id',
+        expiration: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      };
+      const req = mockRequest({}, { refreshToken: 'anonymous-refresh-token' });
+      const res = mockResponse();
+      getUserById.mockResolvedValue({ _id: 'user-123', tenantId: 'tenantA', purgeAt });
+      generateRefreshToken.mockResolvedValue('rotated-anonymous-refresh-token');
+
+      await setAuthTokens('user-123', res, session, req);
+
+      expect(session.expiration).toEqual(purgeAt);
+      expect(generateRefreshToken).toHaveBeenCalledWith(session);
+      expect(res._cookies.refreshToken.value).toBe('rotated-anonymous-refresh-token');
+    });
   });
 });
 

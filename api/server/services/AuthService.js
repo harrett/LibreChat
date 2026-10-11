@@ -708,18 +708,31 @@ const setAuthTokens = async (userId, res, _session = null, req = null) => {
     let refreshToken;
     let refreshTokenExpires;
     const expiresIn = math(process.env.REFRESH_TOKEN_EXPIRY, DEFAULT_REFRESH_TOKEN_EXPIRY);
+    const user = await getUserById(userId);
+    const anonymousExpiry = user?.purgeAt ? new Date(user.purgeAt) : null;
 
     if (session && session._id && session.expiration != null) {
+      const shouldExtendAnonymousSession =
+        anonymousExpiry && anonymousExpiry.getTime() > new Date(session.expiration).getTime();
+      if (shouldExtendAnonymousSession) {
+        session.expiration = anonymousExpiry;
+      }
       refreshTokenExpires = session.expiration.getTime();
-      refreshToken = await generateRefreshToken(session);
+      const browserRefreshToken = req?.cookies?.refreshToken;
+      refreshToken =
+        user?.purgeAt && browserRefreshToken && !shouldExtendAnonymousSession
+          ? browserRefreshToken
+          : await generateRefreshToken(session);
     } else {
-      const result = await createSession(userId, { expiresIn });
+      const result = await createSession(
+        userId,
+        anonymousExpiry ? { expiresIn, expiration: anonymousExpiry } : { expiresIn },
+      );
       session = result.session;
       refreshToken = result.refreshToken;
       refreshTokenExpires = session.expiration.getTime();
     }
 
-    const user = await getUserById(userId);
     const sessionExpiry = math(process.env.SESSION_EXPIRY, DEFAULT_SESSION_EXPIRY);
     const token = await generateToken(user, sessionExpiry);
 

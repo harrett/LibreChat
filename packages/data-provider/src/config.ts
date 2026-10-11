@@ -4032,8 +4032,8 @@ export const configSchema = z.object({
       /** Serves chat without a sign-in step: a browser with no session is given a
        * passwordless throwaway account instead of the login page. Off by default. */
       anonymous: z.boolean().optional(),
-      /** Days an anonymous account survives its creation before a TTL index deletes it.
-       * Counted from creation, not from last use. Defaults to `DEFAULT_ANONYMOUS_RETENTION_DAYS`. */
+      /** Days an anonymous account survives without use before a TTL index deletes it.
+       * Defaults to `DEFAULT_ANONYMOUS_RETENTION_DAYS`. */
       anonymousRetentionDays: z.number().int().min(1).optional(),
       /** Milliseconds a started social login may take to reach its callback; defaults to `DEFAULT_OAUTH_STATE_TTL_MS`. */
       oauthStateTtlMs: z.number().int().min(60_000).max(3_600_000).optional(),

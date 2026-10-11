@@ -177,8 +177,8 @@ export function createLocalRefreshHandler(deps: LocalRefreshDependencies) {
           });
         }
 
-        const token = await deps.setAuthTokens(userId, res, session, req);
         await deps.renewAnonymousRetention?.(user);
+        const token = await deps.setAuthTokens(userId, res, session, req);
         const retired = await recheckMintedCredential(
           () => isCredentialRetired(userId, credential),
           () => revokeSession(res, user, userId),
